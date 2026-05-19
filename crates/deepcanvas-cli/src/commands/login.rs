@@ -8,7 +8,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
 pub async fn run(config: Config) -> Result<(), DeepError> {
-    let client = ApiClient::new(config);
+    let client = ApiClient::new(config.clone());
     let req = AuthStartRequest {
         client_info: collect_client_info(),
     };
@@ -45,8 +45,38 @@ pub async fn run(config: Config) -> Result<(), DeepError> {
         ),
     }
     println!();
-    println!("Try: deep init <org>/<project>");
-    Ok(())
+
+    let cwd = std::env::current_dir()?;
+    let already_init = cwd.join(".deep").join("config.toml").exists();
+    if already_init {
+        println!("This directory is already linked to a project.");
+        return Ok(());
+    }
+
+    use dialoguer::Confirm;
+    let do_init = Confirm::new()
+        .with_prompt("Link this directory to a project now?")
+        .default(true)
+        .interact_opt()
+        .map_err(|e| {
+            DeepError::Io(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                e.to_string(),
+            ))
+        })?;
+
+    match do_init {
+        Some(true) => super::init::run_with_token(config, None, access_token).await,
+        Some(false) => {
+            println!();
+            println!("Run `deep init` later when you're in a project directory.");
+            Ok(())
+        }
+        None => {
+            println!("Run `deep init <org>/<project>` to link a directory.");
+            Ok(())
+        }
+    }
 }
 
 async fn poll(client: &ApiClient, device_token: &str) -> Result<String, DeepError> {

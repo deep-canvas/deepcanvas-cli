@@ -1,7 +1,7 @@
 use super::tasks::resolve_project;
 use colored::Colorize;
 use deepcanvas_core::{
-    token,
+    active_task, token,
     types::{TaskContextResponse, TaskDetail, TaskDocuments},
     ApiClient, Config, DeepError, ProjectBinding,
 };
@@ -83,6 +83,9 @@ async fn pull_one(
     for c in &written {
         println!("  {} {}/{}.md", "→".dimmed(), task_dir.display(), c);
     }
+
+    let cwd = std::env::current_dir()?;
+    active_task::write(&cwd, code)?;
     Ok(())
 }
 
@@ -103,7 +106,7 @@ fn format_task_md(task: &TaskDetail, docs: &TaskDocuments) -> String {
     if let Some(e) = &task.energy {
         out.push_str(&format!("**Energy:** {}  \n", e));
     }
-    if let Some(p) = task.priority {
+    if let Some(p) = &task.priority {
         out.push_str(&format!("**Priority:** {}  \n", p));
     }
     if let Some(a) = &task.assignee {

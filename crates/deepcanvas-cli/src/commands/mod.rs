@@ -1,4 +1,5 @@
 pub mod completion;
+pub mod done;
 pub mod init;
 pub mod login;
 pub mod logout;

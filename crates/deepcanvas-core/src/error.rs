@@ -48,4 +48,7 @@ pub enum DeepError {
 
     #[error("update error: {0}")]
     Update(String),
+
+    #[error("no active task. Pull a task first or pass a code: deep done <code>")]
+    NoActiveTask,
 }

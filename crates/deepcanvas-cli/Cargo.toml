@@ -23,3 +23,5 @@ os_info = { workspace = true }
 urlencoding = { workspace = true }
 self_update = { workspace = true }
 toml = { workspace = true }
+dialoguer = { workspace = true }
+serde_json = { workspace = true }

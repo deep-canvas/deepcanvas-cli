@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/dev-env.sh"
 
 if [ "$#" -ge 1 ]; then
-    cargo run --quiet --bin deep -- init "$1"
+    cargo run --quiet --bin deep -- done "$1"
 else
-    cargo run --quiet --bin deep -- init
+    cargo run --quiet --bin deep -- done
 fi

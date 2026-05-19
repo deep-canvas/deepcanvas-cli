@@ -29,6 +29,10 @@ pub fn print_error(e: &DeepError) {
         DeepError::InvalidTaskCode(c) => {
             eprintln!("  Got: {}. Expected format: DC-142, ENG-7", c.cyan());
         }
+        DeepError::NoActiveTask => {
+            eprintln!("  Pull a task first: {}", "deep pull <code>".cyan());
+            eprintln!("  Or pass a code:    {}", "deep done <code>".cyan());
+        }
         _ => {}
     }
     eprintln!();

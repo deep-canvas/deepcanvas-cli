@@ -10,6 +10,14 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = { workspace = true }
 directories = { workspace = true }
-keyring = { workspace = true }
 toml = { workspace = true }
 thiserror = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service"] }

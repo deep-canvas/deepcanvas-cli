@@ -15,8 +15,13 @@ pub enum TokenLocation {
 pub fn store(token: &str) -> Result<TokenLocation, DeepError> {
     if let Ok(entry) = Entry::new(SERVICE, ACCOUNT) {
         if entry.set_password(token).is_ok() {
-            let _ = remove_file_token();
-            return Ok(TokenLocation::Keyring);
+            // Verify read-back: unsigned dev binaries on macOS can store but
+            // fail to read back across processes due to keychain ACL.
+            if matches!(entry.get_password(), Ok(t) if t == token) {
+                let _ = remove_file_token();
+                return Ok(TokenLocation::Keyring);
+            }
+            let _ = entry.delete_credential();
         }
     }
     let path = token_file_path()?;
@@ -33,7 +38,9 @@ pub fn load() -> Result<Option<String>, DeepError> {
         match entry.get_password() {
             Ok(t) => return Ok(Some(t)),
             Err(keyring::Error::NoEntry) => {}
-            Err(_) => {}
+            Err(e) => {
+                eprintln!("warning: keyring read failed ({e}); trying file fallback");
+            }
         }
     }
     let path = token_file_path()?;

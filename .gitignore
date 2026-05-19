@@ -1,1 +1,4 @@
 /target
+
+# Deep CLI task contexts
+.deep/*/

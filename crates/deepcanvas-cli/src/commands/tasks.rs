@@ -1,11 +1,17 @@
 use colored::Colorize;
 use comfy_table::{presets::UTF8_FULL, ContentArrangement, Table};
 use deepcanvas_core::{token, types::TasksResponse, ApiClient, Config, DeepError, ProjectBinding};
+use dialoguer::Input;
+use std::io::IsTerminal;
 
-pub async fn run(config: Config, project_flag: Option<String>) -> Result<(), DeepError> {
-    let project = resolve_project(project_flag)?;
+pub async fn run(
+    config: Config,
+    project_flag: Option<String>,
+    headless: bool,
+) -> Result<(), DeepError> {
+    let project = resolve_project(project_flag.clone())?;
     let token = token::load()?.ok_or(DeepError::NotAuthenticated)?;
-    let client = ApiClient::new(config).with_token(token);
+    let client = ApiClient::new(config.clone()).with_token(token);
 
     let path = format!(
         "/cli/tasks?org={}&project={}",
@@ -26,14 +32,15 @@ pub async fn run(config: Config, project_flag: Option<String>) -> Result<(), Dee
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["CODE", "TITLE", "ENERGY", "STATUS", "PRD"]);
+        .set_header(vec!["#", "CODE", "TITLE", "ENERGY", "STATUS", "PRD"]);
 
-    for t in &response.tasks {
+    for (i, t) in response.tasks.iter().enumerate() {
         table.add_row(vec![
+            (i + 1).to_string(),
             t.code.clone(),
             truncate(&t.title, 60),
             t.energy.clone().unwrap_or_else(|| "—".into()),
-            t.status.clone(),
+            humanize_status(&t.status),
             t.primary_document
                 .as_ref()
                 .map(|d| d.code.clone())
@@ -50,7 +57,50 @@ pub async fn run(config: Config, project_flag: Option<String>) -> Result<(), Dee
         "{} task(s). Run `deep pull <code>` to fetch context.",
         response.count
     );
-    Ok(())
+
+    if headless || !std::io::stdin().is_terminal() {
+        return Ok(());
+    }
+
+    println!();
+    let answer: String = Input::new()
+        .with_prompt(format!(
+            "Which task do you want to start? (1-{}, Enter to skip)",
+            response.tasks.len()
+        ))
+        .allow_empty(true)
+        .interact_text()
+        .map_err(|e| {
+            DeepError::Io(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                e.to_string(),
+            ))
+        })?;
+
+    let trimmed = answer.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let n: usize = trimmed.parse().map_err(|_| {
+        DeepError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("not a number: {}", trimmed),
+        ))
+    })?;
+    if n == 0 || n > response.tasks.len() {
+        return Err(DeepError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "number out of range: {} (expected 1-{})",
+                n,
+                response.tasks.len()
+            ),
+        )));
+    }
+
+    let code = response.tasks[n - 1].code.clone();
+    super::pull::run(config, vec![code], project_flag).await
 }
 
 pub fn resolve_project(flag: Option<String>) -> Result<ProjectBinding, DeepError> {
@@ -69,5 +119,22 @@ fn truncate(s: &str, n: usize) -> String {
     }
     let mut out: String = s.chars().take(n - 1).collect();
     out.push('…');
+    out
+}
+
+fn humanize_status(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut next_upper = true;
+    for c in s.chars() {
+        if c == '_' || c == '-' {
+            out.push(' ');
+            next_upper = true;
+        } else if next_upper {
+            out.extend(c.to_uppercase());
+            next_upper = false;
+        } else {
+            out.push(c);
+        }
+    }
     out
 }

@@ -54,7 +54,7 @@ pub struct TaskSummary {
     pub title: String,
     pub status: String,
     pub energy: Option<String>,
-    pub priority: Option<i32>,
+    pub priority: Option<String>,
     pub assignee: Option<UserRef>,
     pub primary_document: Option<DocumentRef>,
     pub updated_at: String,
@@ -88,7 +88,7 @@ pub struct TaskDetail {
     pub description: Option<String>,
     pub status: String,
     pub energy: Option<String>,
-    pub priority: Option<i32>,
+    pub priority: Option<String>,
     pub acceptance_criteria: Vec<AcceptanceCriterion>,
     pub assignee: Option<UserRef>,
     pub reporter: Option<UserRef>,
@@ -118,5 +118,35 @@ pub struct DocumentFull {
     pub title: String,
     pub content_markdown: String,
     pub version: i32,
+    pub updated_at: String,
+}
+
+#[derive(Deserialize)]
+pub struct ProjectListResponse {
+    pub projects: Vec<ProjectListEntry>,
+    pub count: u32,
+}
+
+#[derive(Deserialize)]
+pub struct ProjectListEntry {
+    pub organization_slug: String,
+    pub organization_name: String,
+    pub project_slug: String,
+    pub project_name: String,
+    pub role: String,
+}
+
+#[derive(Deserialize)]
+pub struct TaskCompleteResponse {
+    pub task: TaskCompleted,
+}
+
+#[derive(Deserialize)]
+pub struct TaskCompleted {
+    pub id: String,
+    pub code: String,
+    pub title: String,
+    pub status: String,
+    pub completed_at: Option<String>,
     pub updated_at: String,
 }
