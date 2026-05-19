@@ -113,14 +113,14 @@ jobs:
       - name: Checkout tap repo
         uses: actions/checkout@v4
         with:
-          repository: deepcanvas-studio/homebrew-tap
+          repository: deep-canvas/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           path: tap
 
       - name: Download checksums
         run: |
           curl -fsSL \
-            "https://github.com/deepcanvas-studio/deepcanvas-cli/releases/download/${GITHUB_REF_NAME}/deep-${GITHUB_REF_NAME}-checksums.txt" \
+            "https://github.com/deep-canvas/deepcanvas-cli/releases/download/${GITHUB_REF_NAME}/deep-${GITHUB_REF_NAME}-checksums.txt" \
             -o checksums.txt
           cat checksums.txt
 

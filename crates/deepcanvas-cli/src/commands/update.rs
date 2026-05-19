@@ -1,7 +1,7 @@
 use colored::Colorize;
 use deepcanvas_core::DeepError;
 
-const REPO_OWNER: &str = "deepcanvas-studio";
+const REPO_OWNER: &str = "deep-canvas";
 const REPO_NAME: &str = "deepcanvas-cli";
 
 pub async fn run() -> Result<(), DeepError> {

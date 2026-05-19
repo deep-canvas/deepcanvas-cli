@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-REPO="deepcanvas-studio/deepcanvas-cli"
+REPO="deep-canvas/deepcanvas-cli"
 BIN_NAME="deep"
 
 detect_target() {

@@ -11,7 +11,7 @@ curl -fsSL cli.deepcanvas.studio/install.sh | sh
 Or via Homebrew:
 
 ```bash
-brew install deepcanvas-studio/tap/deep
+brew install deep-canvas/tap/deep
 ```
 
 ## Usage
