@@ -1,8 +1,15 @@
 use super::tasks::resolve_project;
+use chrono::Utc;
 use colored::Colorize;
 use deepcanvas_core::{
-    active_task, token, types::TaskCompleteResponse, ApiClient, Config, DeepError,
+    active_task, token,
+    transcript::{aggregate_transcripts, TaskState},
+    types::{AgentSessionDto, CompleteRequest, TaskCompleteResponse},
+    ApiClient, Config, DeepError,
 };
+use std::path::PathBuf;
+
+const AGENT_CODE: &str = "claude-code";
 
 pub async fn run(
     config: Config,
@@ -22,9 +29,13 @@ pub async fn run(
         return Err(DeepError::InvalidTaskCode(code));
     }
 
+    let task_dir = PathBuf::from(".deep").join(&code);
+
+    let agent_session = build_agent_session(&task_dir, &cwd);
+
     let project = resolve_project(None)?;
-    let token = token::load()?.ok_or(DeepError::NotAuthenticated)?;
-    let client = ApiClient::new(config).with_token(token);
+    let token_val = token::load()?.ok_or(DeepError::NotAuthenticated)?;
+    let client = ApiClient::new(config).with_token(token_val);
 
     let path = format!(
         "/cli/tasks/{}/complete?org={}&project={}",
@@ -33,7 +44,8 @@ pub async fn run(
         urlencoding::encode(&project.project_slug),
     );
 
-    let response: TaskCompleteResponse = client.post(&path, &serde_json::json!({})).await?;
+    let body = CompleteRequest { agent_session };
+    let response: TaskCompleteResponse = client.post(&path, &body).await?;
 
     let mut active_cleared = false;
     if let Ok(Some(active)) = active_task::read(&cwd) {
@@ -42,6 +54,7 @@ pub async fn run(
             active_cleared = true;
         }
     }
+    let _ = std::fs::remove_file(task_dir.join(".state.json"));
 
     if headless {
         let payload = serde_json::json!({
@@ -53,6 +66,7 @@ pub async fn run(
                 "completed_at": response.task.completed_at,
             },
             "active_cleared": active_cleared,
+            "usage_recorded": response.usage_recorded,
         });
         println!("{}", payload);
         return Ok(());
@@ -65,7 +79,47 @@ pub async fn run(
         response.task.code.bold(),
         response.task.title
     );
+    if response.usage_recorded {
+        println!("  {}", "Agent session logged.".dimmed());
+    }
     Ok(())
+}
+
+fn build_agent_session(
+    task_dir: &std::path::Path,
+    cwd: &std::path::Path,
+) -> Option<AgentSessionDto> {
+    let state = TaskState::read(task_dir).ok().flatten()?;
+
+    let ended_at_ms = Utc::now().timestamp_millis();
+    let agg = aggregate_transcripts(&state.transcript_dir, state.started_at_ms, ended_at_ms)
+        .ok()
+        .flatten()?;
+
+    let duration_ms = (ended_at_ms - state.started_at_ms).max(0) as u64;
+    let duration_seconds = duration_ms / 1000;
+
+    let local_repo = cwd.to_str().map(|s| s.to_string());
+
+    let metadata = serde_json::json!({
+        "input_tokens": agg.input_tokens,
+        "output_tokens": agg.output_tokens,
+        "cache_read_tokens": agg.cache_read_tokens,
+        "cache_write_tokens": agg.cache_write_tokens,
+        "message_count": agg.message_count,
+        "model_ids": agg.model_ids,
+        "started_at_ms": state.started_at_ms,
+        "ended_at_ms": ended_at_ms,
+    });
+
+    Some(AgentSessionDto {
+        agent_code: std::env::var("DEEPCANVAS_AGENT_CODE")
+            .unwrap_or_else(|_| AGENT_CODE.to_string()),
+        local_repo,
+        duration_seconds,
+        tokens_used: agg.total_tokens(),
+        metadata,
+    })
 }
 
 fn is_valid_task_code(code: &str) -> bool {

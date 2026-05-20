@@ -136,9 +136,25 @@ pub struct ProjectListEntry {
     pub role: String,
 }
 
+#[derive(Serialize)]
+pub struct CompleteRequest {
+    pub agent_session: Option<AgentSessionDto>,
+}
+
+#[derive(Serialize)]
+pub struct AgentSessionDto {
+    pub agent_code: String,
+    pub local_repo: Option<String>,
+    pub duration_seconds: u64,
+    pub tokens_used: u64,
+    pub metadata: serde_json::Value,
+}
+
 #[derive(Deserialize)]
 pub struct TaskCompleteResponse {
     pub task: TaskCompleted,
+    #[serde(default)]
+    pub usage_recorded: bool,
 }
 
 #[derive(Deserialize)]

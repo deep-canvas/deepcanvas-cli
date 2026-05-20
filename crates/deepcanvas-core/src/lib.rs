@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod project;
 pub mod token;
+pub mod transcript;
 pub mod types;
 
 pub use api::ApiClient;

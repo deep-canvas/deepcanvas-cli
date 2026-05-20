@@ -1,7 +1,9 @@
 use super::tasks::resolve_project;
+use chrono::Utc;
 use colored::Colorize;
 use deepcanvas_core::{
     active_task, token,
+    transcript::{default_transcript_dir, TaskState},
     types::{TaskContextResponse, TaskDetail, TaskDocuments},
     ApiClient, Config, DeepError, ProjectBinding,
 };
@@ -89,6 +91,14 @@ async fn pull_one(
 
     let cwd = std::env::current_dir()?;
     active_task::write(&cwd, code)?;
+
+    if let Some(transcript_dir) = default_transcript_dir(&cwd) {
+        let state = TaskState {
+            started_at_ms: Utc::now().timestamp_millis(),
+            transcript_dir,
+        };
+        let _ = TaskState::write(&task_dir, &state);
+    }
 
     if headless {
         let documents: Vec<serde_json::Value> = written
