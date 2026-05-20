@@ -7,7 +7,6 @@ use deepcanvas_core::{
     types::{AgentSessionDto, CompleteRequest, TaskCompleteResponse},
     ApiClient, Config, DeepError,
 };
-use std::path::PathBuf;
 
 const AGENT_CODE: &str = "claude-code";
 
@@ -17,11 +16,11 @@ pub async fn run(
     headless: bool,
     verbose: bool,
 ) -> Result<(), DeepError> {
-    let cwd = std::env::current_dir()?;
+    let (project, root) = resolve_project(None)?;
 
     let code = match task_code {
         Some(c) => c.to_uppercase(),
-        None => active_task::read(&cwd)?
+        None => active_task::read(&root)?
             .ok_or(DeepError::NoActiveTask)?
             .to_uppercase(),
     };
@@ -30,10 +29,10 @@ pub async fn run(
         return Err(DeepError::InvalidTaskCode(code));
     }
 
-    let task_dir = PathBuf::from(".deep").join(&code);
+    let task_dir = root.join(".deep").join(&code);
 
     if verbose {
-        eprintln!("[verbose] cwd: {}", cwd.display());
+        eprintln!("[verbose] project root: {}", root.display());
         eprintln!("[verbose] code: {}", code);
         eprintln!("[verbose] task_dir: {}", task_dir.display());
         let state_path = task_dir.join(".state.json");
@@ -49,7 +48,7 @@ pub async fn run(
         }
     }
 
-    let agent_session = build_agent_session(&task_dir, &cwd, verbose);
+    let agent_session = build_agent_session(&task_dir, &root, verbose);
 
     if verbose {
         match &agent_session {
@@ -61,7 +60,6 @@ pub async fn run(
         }
     }
 
-    let project = resolve_project(None)?;
     let token_val = token::load()?.ok_or(DeepError::NotAuthenticated)?;
     let client = ApiClient::new(config).with_token(token_val);
 
@@ -94,9 +92,9 @@ pub async fn run(
     // API succeeded — task is done. Cleanup local markers, then report.
     let mut active_cleared = false;
     if matches!(
-        active_task::read(&cwd).ok().flatten(),
+        active_task::read(&root).ok().flatten(),
         Some(ref a) if a == &code
-    ) && active_task::clear(&cwd).is_ok()
+    ) && active_task::clear(&root).is_ok()
     {
         active_cleared = true;
     }
@@ -133,7 +131,7 @@ pub async fn run(
 
 fn build_agent_session(
     task_dir: &std::path::Path,
-    cwd: &std::path::Path,
+    root: &std::path::Path,
     verbose: bool,
 ) -> Option<AgentSessionDto> {
     let state = match TaskState::read(task_dir).ok().flatten() {
@@ -184,7 +182,7 @@ fn build_agent_session(
     let duration_ms = (ended_at_ms - state.started_at_ms).max(0) as u64;
     let duration_seconds = duration_ms / 1000;
 
-    let local_repo = cwd.to_str().map(|s| s.to_string());
+    let local_repo = root.to_str().map(|s| s.to_string());
 
     let metadata = serde_json::json!({
         "input_tokens": agg.input_tokens,

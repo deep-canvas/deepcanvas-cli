@@ -9,7 +9,7 @@ pub async fn run(
     project_flag: Option<String>,
     headless: bool,
 ) -> Result<(), DeepError> {
-    let project = resolve_project(project_flag.clone())?;
+    let (project, _root) = resolve_project(project_flag.clone())?;
     let token = token::load()?.ok_or(DeepError::NotAuthenticated)?;
     let client = ApiClient::new(config.clone()).with_token(token);
 
@@ -131,14 +131,16 @@ pub async fn run(
     super::pull::run(config, vec![code], project_flag, false).await
 }
 
-pub fn resolve_project(flag: Option<String>) -> Result<ProjectBinding, DeepError> {
-    if let Some(s) = flag {
-        return ProjectBinding::from_flag(&s);
-    }
+/// Resolve project binding + project root (the dir containing .deep/config.toml).
+/// With --project flag, root falls back to cwd.
+pub fn resolve_project(
+    flag: Option<String>,
+) -> Result<(ProjectBinding, std::path::PathBuf), DeepError> {
     let cwd = std::env::current_dir()?;
-    ProjectBinding::find_from(&cwd)?
-        .map(|(b, _)| b)
-        .ok_or(DeepError::NoProjectBinding)
+    if let Some(s) = flag {
+        return Ok((ProjectBinding::from_flag(&s)?, cwd));
+    }
+    ProjectBinding::find_from(&cwd)?.ok_or(DeepError::NoProjectBinding)
 }
 
 fn truncate(s: &str, n: usize) -> String {

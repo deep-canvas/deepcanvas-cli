@@ -7,7 +7,6 @@ use deepcanvas_core::{
     types::{TaskContextResponse, TaskDetail, TaskDocuments},
     ApiClient, Config, DeepError, ProjectBinding,
 };
-use std::path::PathBuf;
 
 pub async fn run(
     config: Config,
@@ -22,13 +21,13 @@ pub async fn run(
         }
     }
 
-    let project = resolve_project(project_flag)?;
+    let (project, root) = resolve_project(project_flag)?;
     let token = token::load()?.ok_or(DeepError::NotAuthenticated)?;
     let client = ApiClient::new(config).with_token(token);
 
     let mut results: Vec<serde_json::Value> = Vec::new();
     for code in &normalized {
-        let summary = pull_one(&client, &project, code, headless).await?;
+        let summary = pull_one(&client, &project, &root, code, headless).await?;
         results.push(summary);
     }
 
@@ -53,6 +52,7 @@ pub async fn run(
 async fn pull_one(
     client: &ApiClient,
     project: &ProjectBinding,
+    root: &std::path::Path,
     code: &str,
     headless: bool,
 ) -> Result<serde_json::Value, DeepError> {
@@ -64,7 +64,7 @@ async fn pull_one(
     );
     let response: TaskContextResponse = client.get(&path).await?;
 
-    let task_dir = PathBuf::from(".deep").join(code);
+    let task_dir = root.join(".deep").join(code);
     std::fs::create_dir_all(&task_dir)?;
 
     let task_md_path = task_dir.join("task.md");
@@ -89,10 +89,9 @@ async fn pull_one(
         written.push((doc.code.clone(), false));
     }
 
-    let cwd = std::env::current_dir()?;
-    active_task::write(&cwd, code)?;
+    active_task::write(root, code)?;
 
-    if let Some(transcript_dir) = default_transcript_dir(&cwd) {
+    if let Some(transcript_dir) = default_transcript_dir(root) {
         let state = TaskState {
             started_at_ms: Utc::now().timestamp_millis(),
             transcript_dir,
