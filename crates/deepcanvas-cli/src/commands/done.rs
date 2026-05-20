@@ -15,6 +15,7 @@ pub async fn run(
     config: Config,
     task_code: Option<String>,
     headless: bool,
+    verbose: bool,
 ) -> Result<(), DeepError> {
     let cwd = std::env::current_dir()?;
 
@@ -31,7 +32,34 @@ pub async fn run(
 
     let task_dir = PathBuf::from(".deep").join(&code);
 
-    let agent_session = build_agent_session(&task_dir, &cwd);
+    if verbose {
+        eprintln!("[verbose] cwd: {}", cwd.display());
+        eprintln!("[verbose] code: {}", code);
+        eprintln!("[verbose] task_dir: {}", task_dir.display());
+        let state_path = task_dir.join(".state.json");
+        eprintln!(
+            "[verbose] state file: {} (exists: {})",
+            state_path.display(),
+            state_path.exists()
+        );
+        if state_path.exists() {
+            if let Ok(s) = std::fs::read_to_string(&state_path) {
+                eprintln!("[verbose] state content:\n{}", s);
+            }
+        }
+    }
+
+    let agent_session = build_agent_session(&task_dir, &cwd, verbose);
+
+    if verbose {
+        match &agent_session {
+            Some(s) => eprintln!(
+                "[verbose] agent_session built: tokens={}, duration={}s",
+                s.tokens_used, s.duration_seconds
+            ),
+            None => eprintln!("[verbose] agent_session: NULL (state or transcripts missing)"),
+        }
+    }
 
     let project = resolve_project(None)?;
     let token_val = token::load()?.ok_or(DeepError::NotAuthenticated)?;
@@ -45,12 +73,34 @@ pub async fn run(
     );
 
     let body = CompleteRequest { agent_session };
+
+    if verbose {
+        eprintln!("[verbose] POST {}", path);
+        eprintln!(
+            "[verbose] body:\n{}",
+            serde_json::to_string_pretty(&body).unwrap_or_default()
+        );
+    }
+
     let response: TaskCompleteResponse = client.post(&path, &body).await?;
 
-    let will_clear_active = matches!(
+    if verbose {
+        eprintln!(
+            "[verbose] response: usage_recorded={}, status={}",
+            response.usage_recorded, response.task.status
+        );
+    }
+
+    // API succeeded — task is done. Cleanup local markers, then report.
+    let mut active_cleared = false;
+    if matches!(
         active_task::read(&cwd).ok().flatten(),
         Some(ref a) if a == &code
-    );
+    ) && active_task::clear(&cwd).is_ok()
+    {
+        active_cleared = true;
+    }
+    let _ = std::fs::remove_file(task_dir.join(".state.json"));
 
     if headless {
         let payload = serde_json::json!({
@@ -61,7 +111,7 @@ pub async fn run(
                 "status": response.task.status,
                 "completed_at": response.task.completed_at,
             },
-            "active_cleared": will_clear_active,
+            "active_cleared": active_cleared,
             "usage_recorded": response.usage_recorded,
         });
         println!("{}", payload);
@@ -78,24 +128,58 @@ pub async fn run(
         }
     }
 
-    if will_clear_active {
-        let _ = active_task::clear(&cwd);
-    }
-    let _ = std::fs::remove_file(task_dir.join(".state.json"));
-
     Ok(())
 }
 
 fn build_agent_session(
     task_dir: &std::path::Path,
     cwd: &std::path::Path,
+    verbose: bool,
 ) -> Option<AgentSessionDto> {
-    let state = TaskState::read(task_dir).ok().flatten()?;
+    let state = match TaskState::read(task_dir).ok().flatten() {
+        Some(s) => s,
+        None => {
+            if verbose {
+                eprintln!("[verbose] no .state.json or unreadable → agent_session NULL");
+            }
+            return None;
+        }
+    };
+
+    if verbose {
+        eprintln!(
+            "[verbose] transcript_dir: {} (exists: {})",
+            state.transcript_dir.display(),
+            state.transcript_dir.exists()
+        );
+        eprintln!("[verbose] started_at_ms: {}", state.started_at_ms);
+    }
 
     let ended_at_ms = Utc::now().timestamp_millis();
-    let agg = aggregate_transcripts(&state.transcript_dir, state.started_at_ms, ended_at_ms)
+    let agg = match aggregate_transcripts(&state.transcript_dir, state.started_at_ms, ended_at_ms)
         .ok()
-        .flatten()?;
+        .flatten()
+    {
+        Some(a) => a,
+        None => {
+            if verbose {
+                eprintln!("[verbose] aggregate returned None → agent_session NULL");
+            }
+            return None;
+        }
+    };
+
+    if verbose {
+        eprintln!(
+            "[verbose] aggregated: messages={}, input={}, output={}, cache_read={}, cache_write={}, models={:?}",
+            agg.message_count,
+            agg.input_tokens,
+            agg.output_tokens,
+            agg.cache_read_tokens,
+            agg.cache_write_tokens,
+            agg.model_ids
+        );
+    }
 
     let duration_ms = (ended_at_ms - state.started_at_ms).max(0) as u64;
     let duration_seconds = duration_ms / 1000;

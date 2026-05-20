@@ -7,10 +7,11 @@ use deepcanvas_core::{
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
-pub async fn run(config: Config, headless: bool) -> Result<(), DeepError> {
+pub async fn run(config: Config, scope: Option<String>, headless: bool) -> Result<(), DeepError> {
     if headless {
         return Err(DeepError::HeadlessUnavailable);
     }
+    let local = scope.as_deref() == Some(".");
     let client = ApiClient::new(config.clone());
     let req = AuthStartRequest {
         client_info: collect_client_info(),
@@ -38,18 +39,27 @@ pub async fn run(config: Config, headless: bool) -> Result<(), DeepError> {
     let access_token = poll(&client, &session.device_token).await?;
     spinner.finish_and_clear();
 
-    let location = token::store(&access_token)?;
-    println!("{} Authorized", "✓".green().bold());
-    match location {
-        TokenLocation::Keyring => println!("  Token saved to system keychain."),
-        TokenLocation::File => println!(
-            "  {}",
-            "Token saved to local file (keyring unavailable).".yellow()
-        ),
+    let cwd = std::env::current_dir()?;
+
+    if local {
+        token::store_local(&cwd, &access_token)?;
+        let path = cwd.join(".deep").join("credentials");
+        println!("{} Authorized for this project only", "✓".green().bold());
+        println!("  Token saved to {}", path.display().to_string().cyan());
+    } else {
+        let location = token::store(&access_token)?;
+        println!("{} Authorized", "✓".green().bold());
+        match location {
+            TokenLocation::Keyring => println!("  Token saved to system keychain."),
+            TokenLocation::File => println!(
+                "  {}",
+                "Token saved to local file (keyring unavailable).".yellow()
+            ),
+            TokenLocation::Local => {}
+        }
     }
     println!();
 
-    let cwd = std::env::current_dir()?;
     let already_init = cwd.join(".deep").join("config.toml").exists();
     if already_init {
         println!("This directory is already linked to a project.");

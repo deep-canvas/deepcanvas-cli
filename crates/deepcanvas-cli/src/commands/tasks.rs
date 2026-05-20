@@ -36,6 +36,8 @@ pub async fn run(
                 "priority": t.priority,
                 "primary_document_code": t.primary_document.as_ref().map(|d| &d.code),
                 "updated_at": t.updated_at,
+                "parent_id": t.parent_id,
+                "parent_code": t.parent_code,
             })).collect::<Vec<_>>(),
             "count": response.count,
         });
@@ -55,12 +57,15 @@ pub async fn run(
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["#", "CODE", "TITLE", "ENERGY", "STATUS", "PRD"]);
+        .set_header(vec![
+            "#", "CODE", "PARENT", "TITLE", "ENERGY", "STATUS", "PRD",
+        ]);
 
     for (i, t) in response.tasks.iter().enumerate() {
         table.add_row(vec![
             (i + 1).to_string(),
             t.code.clone(),
+            t.parent_code.clone().unwrap_or_else(|| "—".into()),
             truncate(&t.title, 60),
             t.energy.clone().unwrap_or_else(|| "—".into()),
             humanize_status(&t.status),

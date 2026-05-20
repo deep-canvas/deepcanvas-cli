@@ -163,6 +163,9 @@ fn format_task_md(task: &TaskDetail, docs: &TaskDocuments) -> String {
     let mut out = String::new();
     out.push_str(&format!("# {}: {}\n\n", task.code, task.title));
     out.push_str(&format!("**Status:** {}  \n", task.status));
+    if let Some(p) = &task.parent_code {
+        out.push_str(&format!("**Parent:** {}  \n", p));
+    }
     if let Some(e) = &task.energy {
         out.push_str(&format!("**Energy:** {}  \n", e));
     }

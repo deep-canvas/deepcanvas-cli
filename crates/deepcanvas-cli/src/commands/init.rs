@@ -137,11 +137,12 @@ fn update_gitignore(cwd: &std::path::Path) -> Result<(), DeepError> {
         new_content.push_str("\n# Deep CLI task contexts\n");
         new_content.push_str(".deep/*/\n");
         new_content.push_str(".deep/active\n");
+        new_content.push_str(".deep/credentials\n");
         std::fs::write(&gitignore, new_content)?;
     } else {
         std::fs::write(
             &gitignore,
-            "# Deep CLI task contexts\n.deep/*/\n.deep/active\n",
+            "# Deep CLI task contexts\n.deep/*/\n.deep/active\n.deep/credentials\n",
         )?;
     }
     Ok(())

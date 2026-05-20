@@ -12,6 +12,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub headless: bool,
 
+    /// Print debug trace to stderr (paths, payloads, aggregation steps).
+    #[arg(long, global = true)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -19,9 +23,16 @@ pub struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Authenticate this device with DeepCanvas
-    Login,
+    Login {
+        /// Pass "." to scope the login to the current project only
+        /// (writes .deep/credentials instead of the system keychain).
+        scope: Option<String>,
+    },
     /// Remove stored credentials from this device
-    Logout,
+    Logout {
+        /// Pass "." to remove only the project-local credentials.
+        scope: Option<String>,
+    },
     /// Link the current directory to a DeepCanvas project
     Init {
         /// Project as <org-slug>/<project-slug>. Omit for interactive picker.
@@ -60,15 +71,17 @@ async fn main() {
     }
 
     let result = match cli.command {
-        Commands::Login => commands::login::run(config, cli.headless).await,
-        Commands::Logout => commands::logout::run(cli.headless),
+        Commands::Login { scope } => commands::login::run(config, scope, cli.headless).await,
+        Commands::Logout { scope } => commands::logout::run(scope, cli.headless),
         Commands::Init { slug_pair } => commands::init::run(config, slug_pair, cli.headless).await,
         Commands::Tasks { project } => commands::tasks::run(config, project, cli.headless).await,
         Commands::Pull {
             task_codes,
             project,
         } => commands::pull::run(config, task_codes, project, cli.headless).await,
-        Commands::Done { task_code } => commands::done::run(config, task_code, cli.headless).await,
+        Commands::Done { task_code } => {
+            commands::done::run(config, task_code, cli.headless, cli.verbose).await
+        }
         Commands::Completion { shell } => {
             commands::completion::run(shell);
             Ok(())

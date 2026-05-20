@@ -58,6 +58,10 @@ pub struct TaskSummary {
     pub assignee: Option<UserRef>,
     pub primary_document: Option<DocumentRef>,
     pub updated_at: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub parent_code: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -94,6 +98,10 @@ pub struct TaskDetail {
     pub reporter: Option<UserRef>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub parent_code: Option<String>,
 }
 
 #[derive(Deserialize)]
