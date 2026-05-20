@@ -47,14 +47,10 @@ pub async fn run(
     let body = CompleteRequest { agent_session };
     let response: TaskCompleteResponse = client.post(&path, &body).await?;
 
-    let mut active_cleared = false;
-    if let Ok(Some(active)) = active_task::read(&cwd) {
-        if active == code {
-            active_task::clear(&cwd)?;
-            active_cleared = true;
-        }
-    }
-    let _ = std::fs::remove_file(task_dir.join(".state.json"));
+    let will_clear_active = matches!(
+        active_task::read(&cwd).ok().flatten(),
+        Some(ref a) if a == &code
+    );
 
     if headless {
         let payload = serde_json::json!({
@@ -65,23 +61,28 @@ pub async fn run(
                 "status": response.task.status,
                 "completed_at": response.task.completed_at,
             },
-            "active_cleared": active_cleared,
+            "active_cleared": will_clear_active,
             "usage_recorded": response.usage_recorded,
         });
         println!("{}", payload);
-        return Ok(());
+    } else {
+        println!();
+        println!(
+            "{} Completed {}: {}",
+            "✓".green().bold(),
+            response.task.code.bold(),
+            response.task.title
+        );
+        if response.usage_recorded {
+            println!("  {}", "Agent session logged.".dimmed());
+        }
     }
 
-    println!();
-    println!(
-        "{} Completed {}: {}",
-        "✓".green().bold(),
-        response.task.code.bold(),
-        response.task.title
-    );
-    if response.usage_recorded {
-        println!("  {}", "Agent session logged.".dimmed());
+    if will_clear_active {
+        let _ = active_task::clear(&cwd);
     }
+    let _ = std::fs::remove_file(task_dir.join(".state.json"));
+
     Ok(())
 }
 
