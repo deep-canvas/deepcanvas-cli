@@ -55,8 +55,11 @@ pub struct TranscriptAggregate {
 }
 
 impl TranscriptAggregate {
+    /// Real usage: new input + output tokens produced. Excludes cache reads
+    /// (replay traffic — inflates massively in long sessions) and cache writes
+    /// (billed but not "consumed" as task work).
     pub fn total_tokens(&self) -> u64 {
-        self.input_tokens + self.output_tokens + self.cache_read_tokens + self.cache_write_tokens
+        self.input_tokens + self.output_tokens
     }
 }
 
