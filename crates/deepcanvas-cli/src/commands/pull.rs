@@ -11,6 +11,7 @@ pub async fn run(
     config: Config,
     task_codes: Vec<String>,
     project_flag: Option<String>,
+    headless: bool,
 ) -> Result<(), DeepError> {
     let normalized: Vec<String> = task_codes.into_iter().map(|c| c.to_uppercase()).collect();
     for code in &normalized {
@@ -23,8 +24,21 @@ pub async fn run(
     let token = token::load()?.ok_or(DeepError::NotAuthenticated)?;
     let client = ApiClient::new(config).with_token(token);
 
+    let mut results: Vec<serde_json::Value> = Vec::new();
     for code in &normalized {
-        pull_one(&client, &project, code).await?;
+        let summary = pull_one(&client, &project, code, headless).await?;
+        results.push(summary);
+    }
+
+    if headless {
+        let active = normalized.last().cloned();
+        let payload = serde_json::json!({
+            "ok": true,
+            "results": results,
+            "active_task": active,
+        });
+        println!("{}", payload);
+        return Ok(());
     }
 
     if normalized.len() > 1 {
@@ -38,7 +52,8 @@ async fn pull_one(
     client: &ApiClient,
     project: &ProjectBinding,
     code: &str,
-) -> Result<(), DeepError> {
+    headless: bool,
+) -> Result<serde_json::Value, DeepError> {
     let path = format!(
         "/cli/tasks/{}/context?org={}&project={}",
         code,
@@ -56,20 +71,57 @@ async fn pull_one(
         format_task_md(&response.task, &response.documents),
     )?;
 
-    let mut written: Vec<String> = vec![];
+    let mut written: Vec<(String, bool)> = vec![];
     if let Some(doc) = &response.documents.primary {
         std::fs::write(
             task_dir.join(format!("{}.md", doc.code)),
             &doc.content_markdown,
         )?;
-        written.push(doc.code.clone());
+        written.push((doc.code.clone(), true));
     }
     for doc in &response.documents.related {
         std::fs::write(
             task_dir.join(format!("{}.md", doc.code)),
             &doc.content_markdown,
         )?;
-        written.push(doc.code.clone());
+        written.push((doc.code.clone(), false));
+    }
+
+    let cwd = std::env::current_dir()?;
+    active_task::write(&cwd, code)?;
+
+    if headless {
+        let documents: Vec<serde_json::Value> = written
+            .iter()
+            .map(|(c, primary)| {
+                serde_json::json!({
+                    "code": c,
+                    "path": task_dir.join(format!("{}.md", c)).display().to_string(),
+                    "primary": primary,
+                })
+            })
+            .collect();
+        let acceptance: Vec<serde_json::Value> = response
+            .task
+            .acceptance_criteria
+            .iter()
+            .map(|ac| serde_json::json!({ "text": ac.text, "is_done": ac.is_done }))
+            .collect();
+        return Ok(serde_json::json!({
+            "task": {
+                "code": response.task.code,
+                "title": response.task.title,
+                "description": response.task.description,
+                "status": response.task.status,
+                "energy": response.task.energy,
+                "priority": response.task.priority,
+                "acceptance_criteria": acceptance,
+            },
+            "files": {
+                "task_md": task_md_path.display().to_string(),
+                "documents": documents,
+            },
+        }));
     }
 
     println!();
@@ -80,13 +132,11 @@ async fn pull_one(
         response.task.title
     );
     println!("  {} {}", "→".dimmed(), task_md_path.display());
-    for c in &written {
+    for (c, _) in &written {
         println!("  {} {}/{}.md", "→".dimmed(), task_dir.display(), c);
     }
 
-    let cwd = std::env::current_dir()?;
-    active_task::write(&cwd, code)?;
-    Ok(())
+    Ok(serde_json::Value::Null)
 }
 
 fn is_valid_task_code(code: &str) -> bool {

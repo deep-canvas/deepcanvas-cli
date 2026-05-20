@@ -37,3 +37,33 @@ pub fn print_error(e: &DeepError) {
     }
     eprintln!();
 }
+
+pub fn print_error_json(e: &DeepError) {
+    let kind = match e {
+        DeepError::Network(_) => "Network",
+        DeepError::Keyring(_) => "Keyring",
+        DeepError::Io(_) => "Io",
+        DeepError::Serde(_) => "Serde",
+        DeepError::TomlParse(_) => "TomlParse",
+        DeepError::NotAuthenticated => "NotAuthenticated",
+        DeepError::Unauthorized => "Unauthorized",
+        DeepError::SessionExpired => "SessionExpired",
+        DeepError::SessionDenied => "SessionDenied",
+        DeepError::Api { .. } => "Api",
+        DeepError::InvalidTaskCode(_) => "InvalidTaskCode",
+        DeepError::InvalidProjectFormat => "InvalidProjectFormat",
+        DeepError::NoProjectBinding => "NoProjectBinding",
+        DeepError::AlreadyInitialized(_) => "AlreadyInitialized",
+        DeepError::Update(_) => "Update",
+        DeepError::NoActiveTask => "NoActiveTask",
+        DeepError::HeadlessUnavailable => "HeadlessUnavailable",
+    };
+    let payload = serde_json::json!({
+        "ok": false,
+        "error": {
+            "kind": kind,
+            "message": e.to_string(),
+        }
+    });
+    eprintln!("{}", payload);
+}

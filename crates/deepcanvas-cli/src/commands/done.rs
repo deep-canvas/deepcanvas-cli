@@ -4,7 +4,11 @@ use deepcanvas_core::{
     active_task, token, types::TaskCompleteResponse, ApiClient, Config, DeepError,
 };
 
-pub async fn run(config: Config, task_code: Option<String>) -> Result<(), DeepError> {
+pub async fn run(
+    config: Config,
+    task_code: Option<String>,
+    headless: bool,
+) -> Result<(), DeepError> {
     let cwd = std::env::current_dir()?;
 
     let code = match task_code {
@@ -31,10 +35,27 @@ pub async fn run(config: Config, task_code: Option<String>) -> Result<(), DeepEr
 
     let response: TaskCompleteResponse = client.post(&path, &serde_json::json!({})).await?;
 
+    let mut active_cleared = false;
     if let Ok(Some(active)) = active_task::read(&cwd) {
         if active == code {
             active_task::clear(&cwd)?;
+            active_cleared = true;
         }
+    }
+
+    if headless {
+        let payload = serde_json::json!({
+            "ok": true,
+            "task": {
+                "code": response.task.code,
+                "title": response.task.title,
+                "status": response.task.status,
+                "completed_at": response.task.completed_at,
+            },
+            "active_cleared": active_cleared,
+        });
+        println!("{}", payload);
+        return Ok(());
     }
 
     println!();

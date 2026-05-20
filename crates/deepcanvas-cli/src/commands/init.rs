@@ -6,15 +6,23 @@ use deepcanvas_core::{
 };
 use dialoguer::{theme::ColorfulTheme, Select};
 
-pub async fn run(config: Config, slug_pair: Option<String>) -> Result<(), DeepError> {
+pub async fn run(
+    config: Config,
+    slug_pair: Option<String>,
+    headless: bool,
+) -> Result<(), DeepError> {
+    if headless && slug_pair.is_none() {
+        return Err(DeepError::HeadlessUnavailable);
+    }
     let token = token::load()?.ok_or(DeepError::NotAuthenticated)?;
-    run_with_token(config, slug_pair, token).await
+    run_with_token(config, slug_pair, token, headless).await
 }
 
 pub async fn run_with_token(
     config: Config,
     slug_pair: Option<String>,
     token: String,
+    headless: bool,
 ) -> Result<(), DeepError> {
     let cwd = std::env::current_dir()?;
     let config_path = cwd.join(".deep").join("config.toml");
@@ -34,6 +42,19 @@ pub async fn run_with_token(
     std::fs::create_dir_all(cwd.join(".deep"))?;
     std::fs::write(&config_path, project.to_toml())?;
     update_gitignore(&cwd)?;
+
+    if headless {
+        let payload = serde_json::json!({
+            "ok": true,
+            "linked": {
+                "organization_slug": project.organization_slug,
+                "project_slug": project.project_slug,
+            },
+            "config_path": config_path.display().to_string(),
+        });
+        println!("{}", payload);
+        return Ok(());
+    }
 
     println!();
     println!(

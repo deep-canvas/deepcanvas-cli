@@ -1,0 +1,14 @@
+{
+  "name": "deepcanvas",
+  "version": "0.1.0",
+  "description": "DeepCanvas integration: list tasks, pull context, mark done.",
+  "author": {
+    "name": "DeepCanvas Studio",
+    "url": "https://deepcanvas.studio"
+  },
+  "homepage": "https://deepcanvas.studio",
+  "license": "MIT",
+  "requirements": {
+    "binaries": ["deep"]
+  }
+}

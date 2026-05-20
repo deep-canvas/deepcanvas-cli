@@ -8,6 +8,10 @@ mod ui;
 #[derive(Parser)]
 #[command(name = "deep", version, about = "DeepCanvas CLI")]
 pub struct Cli {
+    /// Machine-readable JSON output, no interactivity
+    #[arg(long, global = true)]
+    pub headless: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -27,9 +31,6 @@ enum Commands {
     Tasks {
         #[arg(long, short)]
         project: Option<String>,
-        /// Skip the interactive picker; print the table and exit.
-        #[arg(long)]
-        headless: bool,
     },
     /// Pull task context into .deep/<task-code>/
     Pull {
@@ -54,27 +55,33 @@ async fn main() {
     let cli = Cli::parse();
     let config = Config::load();
 
+    if cli.headless {
+        colored::control::set_override(false);
+    }
+
     let result = match cli.command {
-        Commands::Login => commands::login::run(config).await,
-        Commands::Logout => commands::logout::run(),
-        Commands::Init { slug_pair } => commands::init::run(config, slug_pair).await,
-        Commands::Tasks { project, headless } => {
-            commands::tasks::run(config, project, headless).await
-        }
+        Commands::Login => commands::login::run(config, cli.headless).await,
+        Commands::Logout => commands::logout::run(cli.headless),
+        Commands::Init { slug_pair } => commands::init::run(config, slug_pair, cli.headless).await,
+        Commands::Tasks { project } => commands::tasks::run(config, project, cli.headless).await,
         Commands::Pull {
             task_codes,
             project,
-        } => commands::pull::run(config, task_codes, project).await,
-        Commands::Done { task_code } => commands::done::run(config, task_code).await,
+        } => commands::pull::run(config, task_codes, project, cli.headless).await,
+        Commands::Done { task_code } => commands::done::run(config, task_code, cli.headless).await,
         Commands::Completion { shell } => {
             commands::completion::run(shell);
             Ok(())
         }
-        Commands::Update => commands::update::run().await,
+        Commands::Update => commands::update::run(cli.headless).await,
     };
 
     if let Err(e) = result {
-        ui::print_error(&e);
+        if cli.headless {
+            ui::print_error_json(&e);
+        } else {
+            ui::print_error(&e);
+        }
         std::process::exit(1);
     }
 }

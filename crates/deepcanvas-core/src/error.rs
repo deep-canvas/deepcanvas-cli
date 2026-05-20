@@ -51,4 +51,7 @@ pub enum DeepError {
 
     #[error("no active task. Pull a task first or pass a code: deep done <code>")]
     NoActiveTask,
+
+    #[error("this command requires an interactive terminal; --headless not supported")]
+    HeadlessUnavailable,
 }

@@ -20,6 +20,29 @@ pub async fn run(
     );
     let response: TasksResponse = client.get(&path).await?;
 
+    if headless {
+        let payload = serde_json::json!({
+            "ok": true,
+            "project": {
+                "slug": response.project.slug,
+                "name": response.project.name,
+                "organization_slug": response.project.organization_slug,
+            },
+            "tasks": response.tasks.iter().map(|t| serde_json::json!({
+                "code": t.code,
+                "title": t.title,
+                "status": t.status,
+                "energy": t.energy,
+                "priority": t.priority,
+                "primary_document_code": t.primary_document.as_ref().map(|d| &d.code),
+                "updated_at": t.updated_at,
+            })).collect::<Vec<_>>(),
+            "count": response.count,
+        });
+        println!("{}", payload);
+        return Ok(());
+    }
+
     if response.tasks.is_empty() {
         println!(
             "No assigned tasks in {} / {}.",
@@ -100,7 +123,7 @@ pub async fn run(
     }
 
     let code = response.tasks[n - 1].code.clone();
-    super::pull::run(config, vec![code], project_flag).await
+    super::pull::run(config, vec![code], project_flag, false).await
 }
 
 pub fn resolve_project(flag: Option<String>) -> Result<ProjectBinding, DeepError> {

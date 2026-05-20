@@ -7,7 +7,10 @@ use deepcanvas_core::{
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
-pub async fn run(config: Config) -> Result<(), DeepError> {
+pub async fn run(config: Config, headless: bool) -> Result<(), DeepError> {
+    if headless {
+        return Err(DeepError::HeadlessUnavailable);
+    }
     let client = ApiClient::new(config.clone());
     let req = AuthStartRequest {
         client_info: collect_client_info(),
@@ -66,7 +69,7 @@ pub async fn run(config: Config) -> Result<(), DeepError> {
         })?;
 
     match do_init {
-        Some(true) => super::init::run_with_token(config, None, access_token).await,
+        Some(true) => super::init::run_with_token(config, None, access_token, false).await,
         Some(false) => {
             println!();
             println!("Run `deep init` later when you're in a project directory.");
