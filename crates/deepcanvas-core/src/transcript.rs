@@ -61,43 +61,44 @@ impl TranscriptAggregate {
 }
 
 #[derive(Deserialize)]
-struct TranscriptMessage {
+struct TranscriptEntry {
+    #[serde(default, rename = "type")]
+    entry_type: Option<String>,
     #[serde(default)]
-    role: Option<String>,
-    #[serde(rename = "modelID", default)]
-    model_id: Option<String>,
+    timestamp: Option<String>,
     #[serde(default)]
-    tokens: Option<TokenBlock>,
-    #[serde(default)]
-    time: Option<TimeBlock>,
+    message: Option<InnerMessage>,
 }
 
 #[derive(Deserialize)]
-struct TokenBlock {
+struct InnerMessage {
     #[serde(default)]
-    input: u64,
+    model: Option<String>,
     #[serde(default)]
-    output: u64,
-    #[serde(default)]
-    cache: Option<CacheBlock>,
+    usage: Option<Usage>,
 }
 
 #[derive(Deserialize)]
-struct CacheBlock {
+struct Usage {
     #[serde(default)]
-    read: u64,
+    input_tokens: u64,
     #[serde(default)]
-    write: u64,
+    output_tokens: u64,
+    #[serde(default)]
+    cache_creation_input_tokens: u64,
+    #[serde(default)]
+    cache_read_input_tokens: u64,
 }
 
-#[derive(Deserialize)]
-struct TimeBlock {
-    #[serde(default)]
-    created: i64,
+fn parse_iso_to_ms(s: &str) -> Option<i64> {
+    chrono::DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.timestamp_millis())
 }
 
 /// Scan all JSONL files in transcript_dir, sum tokens for assistant messages
-/// where time.created >= started_at_ms. Returns None if dir doesn't exist.
+/// whose timestamp falls within [started_at_ms, ended_at_ms].
+/// Returns None if dir doesn't exist.
 pub fn aggregate_transcripts(
     transcript_dir: &Path,
     started_at_ms: i64,
@@ -130,28 +131,35 @@ pub fn aggregate_transcripts(
             if line.is_empty() {
                 continue;
             }
-            let msg: TranscriptMessage = match serde_json::from_str(line) {
+            let entry: TranscriptEntry = match serde_json::from_str(line) {
                 Ok(m) => m,
                 Err(_) => continue,
             };
 
-            if msg.role.as_deref() != Some("assistant") {
-                continue;
-            }
-            let created = msg.time.as_ref().map(|t| t.created).unwrap_or(0);
-            if created < started_at_ms || created > ended_at_ms {
+            if entry.entry_type.as_deref() != Some("assistant") {
                 continue;
             }
 
-            if let Some(tok) = &msg.tokens {
-                agg.input_tokens += tok.input;
-                agg.output_tokens += tok.output;
-                if let Some(c) = &tok.cache {
-                    agg.cache_read_tokens += c.read;
-                    agg.cache_write_tokens += c.write;
-                }
+            let ts_ms = match entry.timestamp.as_deref().and_then(parse_iso_to_ms) {
+                Some(ms) => ms,
+                None => continue,
+            };
+            if ts_ms < started_at_ms || ts_ms > ended_at_ms {
+                continue;
             }
-            if let Some(model) = &msg.model_id {
+
+            let inner = match &entry.message {
+                Some(m) => m,
+                None => continue,
+            };
+
+            if let Some(u) = &inner.usage {
+                agg.input_tokens += u.input_tokens;
+                agg.output_tokens += u.output_tokens;
+                agg.cache_write_tokens += u.cache_creation_input_tokens;
+                agg.cache_read_tokens += u.cache_read_input_tokens;
+            }
+            if let Some(model) = &inner.model {
                 if !model.is_empty() {
                     models.insert(model.clone());
                 }
