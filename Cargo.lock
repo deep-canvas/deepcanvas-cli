@@ -449,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "deepcanvas-cli"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "chrono",
@@ -472,7 +472,7 @@ dependencies = [
 
 [[package]]
 name = "deepcanvas-core"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "chrono",
