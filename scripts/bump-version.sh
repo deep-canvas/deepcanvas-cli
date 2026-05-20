@@ -44,16 +44,16 @@ if git rev-parse "${TAG}" >/dev/null 2>&1; then
     exit 1
 fi
 
-CURRENT=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)".*/\1/')
+CURRENT=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
 echo "→ Bumping ${CURRENT} → ${VERSION}"
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' -E "s/^(version\s*=\s*\")[^\"]+(\".*)$/\1${VERSION}\2/" Cargo.toml
+    sed -i '' -E "s/^(version[[:space:]]*=[[:space:]]*\")[^\"]+(\".*)$/\1${VERSION}\2/" Cargo.toml
 else
-    sed -i -E "s/^(version\s*=\s*\")[^\"]+(\".*)$/\1${VERSION}\2/" Cargo.toml
+    sed -i -E "s/^(version[[:space:]]*=[[:space:]]*\")[^\"]+(\".*)$/\1${VERSION}\2/" Cargo.toml
 fi
 
-NEW=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)".*/\1/')
+NEW=$(grep -m1 '^version' Cargo.toml | sed -E 's/^version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
 if [ "${NEW}" != "${VERSION}" ]; then
     echo "error: Cargo.toml version edit failed (got '${NEW}')" >&2
     exit 1
