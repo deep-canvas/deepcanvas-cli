@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "deepcanvas",
-      "source": ".",
+      "source": "../claude-plugin",
       "description": "Bring DeepCanvas tasks and PRDs into Claude Code sessions.",
       "category": "productivity",
       "version": "0.1.0"
