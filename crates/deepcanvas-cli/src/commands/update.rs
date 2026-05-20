@@ -32,6 +32,7 @@ fn do_update(headless: bool) -> Result<(), DeepError> {
         .repo_owner(REPO_OWNER)
         .repo_name(REPO_NAME)
         .bin_name("deep")
+        .bin_path_in_archive("{{ bin }}-v{{ version }}-{{ target }}/{{ bin }}")
         .show_download_progress(!headless)
         .current_version(env!("CARGO_PKG_VERSION"))
         .build()
