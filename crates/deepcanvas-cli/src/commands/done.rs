@@ -80,7 +80,32 @@ pub async fn run(
         );
     }
 
-    let response: TaskCompleteResponse = client.post(&path, &body).await?;
+    let response: TaskCompleteResponse = match client.post(&path, &body).await {
+        Ok(r) => r,
+        Err(DeepError::Api {
+            status: 409,
+            message,
+        }) => {
+            // Stale active marker pointed to an already-completed task.
+            // Clean up locally so the next `deep done` doesn't loop on the same mistake.
+            let _ = active_task::clear(&root);
+            let _ = std::fs::remove_file(task_dir.join(".state.json"));
+            if verbose {
+                eprintln!(
+                    "[verbose] 409 detected — cleared stale active marker for {}",
+                    code
+                );
+            }
+            return Err(DeepError::Api {
+                status: 409,
+                message: format!(
+                    "{} ({} was already done — cleared local active marker; run `deep pull <code>` for your next task)",
+                    message, code
+                ),
+            });
+        }
+        Err(e) => return Err(e),
+    };
 
     if verbose {
         eprintln!(

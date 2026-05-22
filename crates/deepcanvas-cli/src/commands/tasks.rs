@@ -57,9 +57,7 @@ pub async fn run(
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec![
-            "#", "CODE", "PARENT", "TITLE", "ENERGY", "STATUS", "PRD",
-        ]);
+        .set_header(vec!["#", "CODE", "PARENT", "TITLE", "ENERGY", "STATUS"]);
 
     for (i, t) in response.tasks.iter().enumerate() {
         table.add_row(vec![
@@ -69,10 +67,6 @@ pub async fn run(
             truncate(&t.title, 60),
             t.energy.clone().unwrap_or_else(|| "—".into()),
             humanize_status(&t.status),
-            t.primary_document
-                .as_ref()
-                .map(|d| d.code.clone())
-                .unwrap_or_else(|| "—".into()),
         ]);
     }
 
